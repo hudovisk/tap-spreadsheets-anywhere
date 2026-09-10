@@ -38,13 +38,32 @@ def generator_wrapper(reader, table_spec: dict={}) -> dict:
 
         yield to_return
 
+def resolve_worksheet_name(table_spec, available_names):
+    """Return the configured worksheet that exists in the workbook.
+
+    ``worksheet_name`` may be a single name or an ordered list of candidate
+    names; the first candidate present in ``available_names`` wins. This lets a
+    single table spec keep matching files whose sheet was renamed over time.
+    Raises KeyError when none of the candidates exist.
+    """
+    configured = table_spec["worksheet_name"]
+    candidates = [configured] if isinstance(configured, str) else list(configured)
+    for name in candidates:
+        if name in available_names:
+            return name
+    raise KeyError(
+        "None of the worksheets {0} exist. Available worksheets: {1}".format(
+            candidates, list(available_names)))
+
+
 def get_legacy_row_iterator(table_spec, file_handle):
     workbook = xlrd.open_workbook(on_demand=True,file_contents=file_handle.read())
     if "worksheet_name" in table_spec:
         try:
-            sheet = workbook.sheet_by_name(table_spec["worksheet_name"])
+            sheet_name = resolve_worksheet_name(table_spec, workbook.sheet_names())
+            sheet = workbook.sheet_by_name(sheet_name)
         except Exception as e:
-            LOGGER.error("Unable to open specified sheet '"+table_spec["worksheet_name"]+"' - did you check the workbook's sheet name for spaces?")
+            LOGGER.error("Unable to open specified sheet '%s' - did you check the workbook's sheet name for spaces?", table_spec["worksheet_name"])
             raise e
     else:
         try:
@@ -73,9 +92,10 @@ def get_row_iterator(table_spec, file_handle):
     
     if "worksheet_name" in table_spec:
         try:
-            active_sheet = workbook[table_spec["worksheet_name"]]
+            sheet_name = resolve_worksheet_name(table_spec, workbook.sheetnames)
+            active_sheet = workbook[sheet_name]
         except Exception as e:
-            LOGGER.error("Unable to open specified sheet '"+table_spec["worksheet_name"]+"' - did you check the workbook's sheet name for spaces?")
+            LOGGER.error("Unable to open specified sheet '%s' - did you check the workbook's sheet name for spaces?", table_spec["worksheet_name"])
             raise e
     else:
         try:

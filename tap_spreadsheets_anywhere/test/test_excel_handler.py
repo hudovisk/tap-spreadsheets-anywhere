@@ -1,7 +1,7 @@
 import logging
 import pytest
 from openpyxl import Workbook
-from tap_spreadsheets_anywhere.excel_handler import generator_wrapper
+from tap_spreadsheets_anywhere.excel_handler import generator_wrapper, resolve_worksheet_name
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,3 +37,24 @@ class TestExcelHandlerGeneratorWrapper:
         assert next(_generator) == exp[2]
         with pytest.raises(StopIteration):
             next(_generator)
+
+
+class TestResolveWorksheetName:
+    """Validate `excel_handler.resolve_worksheet_name`."""
+    def test_single_name(self):
+        spec = {"worksheet_name": "Trafego Dados"}
+        assert resolve_worksheet_name(spec, ["FAT", "Trafego Dados"]) == "Trafego Dados"
+
+    def test_single_name_missing(self):
+        with pytest.raises(KeyError):
+            resolve_worksheet_name({"worksheet_name": "Trafego Dados"}, ["FAT", "DADOS"])
+
+    def test_candidates_prefer_first_present(self):
+        spec = {"worksheet_name": ["DADOS", "Trafego Dados"]}
+        assert resolve_worksheet_name(spec, ["FAT", "DADOS"]) == "DADOS"
+        assert resolve_worksheet_name(spec, ["FAT", "Trafego Dados"]) == "Trafego Dados"
+        assert resolve_worksheet_name(spec, ["DADOS", "Trafego Dados"]) == "DADOS"
+
+    def test_candidates_none_present(self):
+        with pytest.raises(KeyError):
+            resolve_worksheet_name({"worksheet_name": ["DADOS", "Trafego Dados"]}, ["FAT"])
